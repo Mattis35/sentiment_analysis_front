@@ -1,0 +1,24 @@
+[theme]
+base = "light"                  # "light" or "dark"
+primaryColor = "#20a08d"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f6f9fc"
+textColor = "#0f172a"
+font = "sans serif"
+
+[client]
+toolbarMode = "minimal"         # "auto" | "minimal" | "viewer"
+showErrorDetails = true
+
+[server]
+headless = true
+enableCORS = true               # keep true; API handles CORS itself
+enableXsrfProtection = true
+fileWatcherType = "auto"        # use "poll" if hot-reload is flaky on your OS
+maxUploadSize = 10
+
+[browser]
+gatherUsageStats = false
+
+[logger]
+level = "info"                  # "error" | "warning" | "info" | "debug"
