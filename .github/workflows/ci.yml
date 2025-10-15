@@ -1,0 +1,136 @@
+# ============================================
+# 🚀 WORKFLOW DE TEST + BUILD + DEPLOIEMENT RENDER
+# ============================================
+name: Deploy API
+
+on:
+  push:
+    branches: [ "main" ]          # A chaque push sur main
+  pull_request:
+    branches: [ "main" ]          # PR vers main (tests uniquement)
+
+jobs:
+  # ==========================================
+  # JOB 1 : TESTS 🧪
+  # ==========================================
+  test:
+    name: 🧪 Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🐍 Setup Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: "pip"
+
+      - name: 📦 Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          # (facultatif) outils de test supplémentaires
+          pip install pytest httpx
+
+      - name: ✅ Smoke import
+        run: |
+          python - << 'PY'
+          from main import app
+          print("✅ Import OK, app chargée.")
+          PY
+
+      # Utilise ta suite pytest (test_api.py)
+      - name: 🧪 Run pytest
+        run: |
+          pytest -v --maxfail=1
+
+      # Mini smoke test inline avec TestClient sur tes VRAIS endpoints
+      - name: 🔎 Inline smoke endpoints
+        run: |
+          python - << 'PY'
+          from fastapi.testclient import TestClient
+          from main import app
+          c = TestClient(app)
+
+          # /health
+          r = c.get("/health")
+          assert r.status_code == 200, r.text
+          j = r.json()
+          assert "status" in j and j["status"] == "ok"
+          print("✅ /health OK")
+
+          # /predict (payload simple)
+          r = c.post("/predict", json={"text": "I love this product!"})
+          assert r.status_code == 200, r.text
+          data = r.json()
+          for f in ["sentiment","confidence","probability_positive","probability_negative"]:
+            assert f in data
+          print("✅ /predict OK")
+
+          # /explain (si LIME dispo, sinon on tolère 503)
+          r = c.post("/explain", json={"text": "This is terrible!"})
+          assert r.status_code in (200, 503), r.text
+          print("✅ /explain OK (status:", r.status_code, ")")
+          PY
+
+  # ==========================================
+  # JOB 2 : BUILD 🏗️
+  # ==========================================
+  build:
+    name: 🏗️ Build
+    needs: test                      # ne tourne que si TEST ok
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'  # pas de build sur PR
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: 📦 Verify dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          echo "✅ Dependencies OK"
+
+      - name: 📋 Check files
+        run: |
+          ls -la
+          test -f main.py
+          test -f requirements.txt
+          # Artefacts (adapter selon ton repo)
+          test -f sentiment_model.joblib || echo "⚠️ sentiment_model.joblib manquant (ok si téléchargé autrement)"
+          test -f tfidf_vectorizer.joblib || echo "ℹ️ tfidf_vectorizer.joblib optionnel (pipeline?)"
+          echo "✅ Files OK"
+
+  # ==========================================
+  # JOB 3 : DEPLOY 🚀
+  # ==========================================
+  deploy:
+    name: 🚀 Deploy to Render
+    needs: [ test, build ]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: 🔐 Check deploy hook
+        run: |
+          if [ -z "${{ secrets.RENDER_DEPLOY_HOOK }}" ]; then
+            echo "❌ Secret RENDER_DEPLOY_HOOK manquant. Ajoute-le dans Settings → Secrets → Actions."
+            exit 1
+          fi
+          echo "✅ Deploy hook present."
+
+      - name: 🚀 Trigger Render deploy
+        run: |
+          curl -fsSL -X POST "${{ secrets.RENDER_DEPLOY_HOOK }}" && echo "✅ Deploy triggered" || (echo "❌ Deploy failed" && exit 1)
+
+      - name: ✅ Deployment step done
+        run: |
+          echo "🌐 Vérifie le dashboard Render pour le statut du déploiement."

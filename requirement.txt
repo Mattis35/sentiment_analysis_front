@@ -1,0 +1,28 @@
+# --- Core & Web ---
+fastapi
+uvicorn[standard]
+requests
+streamlit
+
+# --- Data science / ML ---
+numpy
+pandas
+scikit-learn
+xgboost
+joblib
+mlflow
+
+# --- Text Processing ---
+nltk
+pydantic
+
+# --- Visualization ---
+matplotlib
+seaborn
+plotly
+
+# --- Explainability ---
+lime
+
+# --- Deployment helpers (optional, but common) ---
+python-dotenv
